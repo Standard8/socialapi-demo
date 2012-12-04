@@ -278,6 +278,15 @@ function setupEventSource() {
 
   source.addEventListener("offer", function(e) {
     var data = JSON.parse(e.data);
+
+    // See if the user wants to answer the call.
+    // XXX Make this async and use a non-modal dialog.
+    if (!window.confirm("Answer call from " + data.from + "?")) {
+      $.ajax({type: 'POST', url: 'answer',
+              data: {to: data.from, from: data.to}});
+      return;
+    }
+
     openChat(data.from, function(aWin) {
       var win = gChats[data.from].win;
       var pc = new win.mozRTCPeerConnection();
@@ -315,6 +324,18 @@ function setupEventSource() {
   source.addEventListener("answer", function(e) {
     var data = JSON.parse(e.data);
     var pc = gChats[data.from].pc;
+    // Check for an empty data.request, this signifies the call being rejected.
+    // (note json converts null values to the string equivalent).
+    if (!data.request || data.request == "null") {
+      // Call was rejected
+      // XXX Add a call rejected notification.
+      pc.close();
+      gChats[data.from].win.close();
+      delete gChats[data.from];
+      return;
+    }
+
+    // The other side wants to talk.
     pc.setRemoteDescription(JSON.parse(data.request), function() {
       // Nothing to do for the audio/video. The interesting things for
       // them will happen in onaddstream.
